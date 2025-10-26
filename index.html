@@ -87,12 +87,13 @@
                         <label for="keterangan" class="form-label">Keterangan (Opsional)</label>
                         <textarea class="form-control" id="keterangan" name="keterangan" rows="2"></textarea>
                     </div>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2 flex-wrap">
                         <button type="submit" class="btn btn-primary" id="btnSubmit">
                             <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner"></span>
                             Simpan Transaksi
                         </button>
                         <button type="button" id="hapusSemua" class="btn btn-outline-danger">Hapus Semua Data</button>
+                        <button type="button" id="syncKeSheets" class="btn btn-outline-success">Sync ke Google Sheets</button>
                     </div>
                 </form>
             </div>
@@ -102,10 +103,6 @@
         <div class="card">
             <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                 <h3 class="card-title mb-0">Riwayat Transaksi</h3>
-                <div>
-                    <button type="button" id="eksporData" class="btn btn-light btn-sm me-2">Ekspor ke CSV</button>
-                    <span class="badge bg-info" id="jumlahTransaksi">0 transaksi</span>
-                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -118,6 +115,7 @@
                                 <th scope="col">Nominal</th>
                                 <th scope="col">Tanggal</th>
                                 <th scope="col">Keterangan</th>
+                                <th scope="col">Sync Status</th>
                                 <th scope="col">Aksi</th>
                             </tr>
                         </thead>
@@ -133,7 +131,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
     
     <script>
-        // Your web app's Firebase configuration
+        // Konfigurasi Firebase - GANTI dengan konfigurasi Anda
         const firebaseConfig = {
             apiKey: "AIzaSyAsiNO4CpB1bDcIWVZZEkwerLO3Zjy52cw",
             authDomain: "tabungan-aulia-alfye.firebaseapp.com",
@@ -144,7 +142,10 @@
             measurementId: "G-0J14R7SKXK"
         };
 
-        // Initialize Firebase
+        // URL Google Apps Script
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyuQR18vlkF_F9qODJojfBXNzd3zlg6WQ6UTtSYEbOROY800LpCPfhfvx8vvqprtX506w/exec";
+
+        // Inisialisasi Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
@@ -205,7 +206,7 @@
             if (transaksi.length === 0) {
                 tabelBody.innerHTML = `
                     <tr>
-                        <td colspan="7" class="text-center">Belum ada transaksi</td>
+                        <td colspan="8" class="text-center">Belum ada transaksi</td>
                     </tr>
                 `;
                 return;
@@ -228,6 +229,11 @@
                     <td>${formatTanggal(t.tanggal)}</td>
                     <td>${t.keterangan || '-'}</td>
                     <td>
+                        <span class="badge ${t.syncToSheets ? 'bg-success' : 'bg-warning'}">
+                            ${t.syncToSheets ? '✓ Tersync' : 'Belum Sync'}
+                        </span>
+                    </td>
+                    <td>
                         <button type="button" class="btn btn-sm btn-outline-danger" onclick="hapusTransaksi('${t.id}')">
                             Hapus
                         </button>
@@ -248,7 +254,8 @@
             try {
                 const docRef = await db.collection('transaksi').add({
                     ...transaksiBaru,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    syncToSheets: false
                 });
                 return docRef.id;
             } catch (error) {
@@ -257,12 +264,95 @@
             }
         }
 
+        // Fungsi untuk menyimpan ke Google Sheets
+        async function simpanKeGoogleSheets(transaksiData) {
+            try {
+                // Sesuaikan dengan struktur yang diharapkan Google Apps Script
+                const payload = {
+                    'Date': new Date().toISOString().split('T')[0], // Kolom Date otomatis
+                    'Nama': transaksiData.nama,
+                    'Jenis': transaksiData.jenis,
+                    'Nominal': transaksiData.nominal,
+                    'Tanggal': transaksiData.tanggal,
+                    'Keterangan': transaksiData.keterangan || ''
+                };
+
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Important for Google Apps Script
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams(payload)
+                });
+
+                // Dengan mode no-cors, kita tidak bisa membaca response
+                // Tapi kita anggap berhasil jika tidak ada error
+                console.log('Data dikirim ke Google Sheets');
+                return true;
+
+            } catch (error) {
+                console.error('Error menyimpan ke Google Sheets:', error);
+                throw error;
+            }
+        }
+
+        // Fungsi untuk sync semua data ke Google Sheets
+        async function syncSemuaKeSheets() {
+            const btnSync = document.getElementById('syncKeSheets');
+            const originalText = btnSync.innerHTML;
+            
+            try {
+                btnSync.disabled = true;
+                btnSync.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Syncing...';
+                
+                const transaksiBelumSync = transaksi.filter(t => !t.syncToSheets);
+                
+                if (transaksiBelumSync.length === 0) {
+                    alert('Semua data sudah tersinkronisasi dengan Google Sheets!');
+                    return;
+                }
+                
+                let berhasil = 0;
+                let gagal = 0;
+                
+                for (const trans of transaksiBelumSync) {
+                    try {
+                        await simpanKeGoogleSheets(trans);
+                        // Update flag di Firebase
+                        await db.collection('transaksi').doc(trans.id).update({
+                            syncToSheets: true
+                        });
+                        berhasil++;
+                    } catch (error) {
+                        console.error(`Gagal sync transaksi ${trans.id}:`, error);
+                        gagal++;
+                    }
+                    
+                    // Delay sedikit antara setiap request untuk menghindari limit
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                if (gagal === 0) {
+                    alert(`✅ Sync berhasil! ${berhasil} transaksi telah disinkronisasi ke Google Sheets.`);
+                } else {
+                    alert(`⚠️ Sync selesai!\nBerhasil: ${berhasil} transaksi\nGagal: ${gagal} transaksi\n\nData yang gagal akan dicoba lagi saat sync berikutnya.`);
+                }
+                
+            } catch (error) {
+                console.error('Error sync ke Sheets:', error);
+                alert('❌ Error sync ke Google Sheets: ' + error.message);
+            } finally {
+                btnSync.disabled = false;
+                btnSync.innerHTML = originalText;
+            }
+        }
+
         // Fungsi untuk menghapus transaksi dari Firebase
         async function hapusTransaksi(id) {
             if (confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) {
                 try {
                     await db.collection('transaksi').doc(id).delete();
-                    // Data akan otomatis terupdate via realtime listener
                 } catch (error) {
                     console.error('Error menghapus transaksi:', error);
                     alert('Error menghapus transaksi: ' + error.message);
@@ -282,7 +372,6 @@
                     });
                     
                     await batch.commit();
-                    // Data akan otomatis terupdate via realtime listener
                 } catch (error) {
                     console.error('Error menghapus semua data:', error);
                     alert('Error menghapus data: ' + error.message);
@@ -297,14 +386,15 @@
                 return;
             }
             
-            const headers = ['No', 'Nama', 'Jenis', 'Nominal', 'Tanggal', 'Keterangan'];
+            const headers = ['No', 'Nama', 'Jenis', 'Nominal', 'Tanggal', 'Keterangan', 'Sync Status'];
             const csvData = transaksi.map((t, index) => [
                 index + 1,
                 t.nama,
                 t.jenis,
                 t.nominal,
                 t.tanggal,
-                t.keterangan || ''
+                t.keterangan || '',
+                t.syncToSheets ? 'Tersync' : 'Belum Sync'
             ]);
             
             let csvContent = "data:text/csv;charset=utf-8,";
@@ -316,7 +406,7 @@
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "tabungan_aulia_alfye.csv");
+            link.setAttribute("download", `tabungan_aulia_alfye_${new Date().toISOString().split('T')[0]}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -371,16 +461,29 @@
             };
             
             try {
-                await tambahTransaksi(transaksiBaru);
+                // Simpan ke Firebase
+                const docId = await tambahTransaksi(transaksiBaru);
+                
+                // Coba simpan ke Google Sheets juga
+                try {
+                    await simpanKeGoogleSheets(transaksiBaru);
+                    // Update flag di Firebase jika berhasil
+                    await db.collection('transaksi').doc(docId).update({
+                        syncToSheets: true
+                    });
+                    alert('✅ Transaksi berhasil disimpan ke Firebase dan Google Sheets!');
+                } catch (sheetsError) {
+                    console.warn('Data tersimpan di Firebase tapi gagal di Google Sheets:', sheetsError);
+                    alert('⚠️ Transaksi berhasil disimpan di Firebase, tapi gagal di Google Sheets. Gunakan tombol "Sync ke Google Sheets" nanti.');
+                }
                 
                 // Reset form
                 this.reset();
                 document.getElementById('tanggal').valueAsDate = new Date();
                 
-                // Data akan otomatis terupdate via realtime listener
             } catch (error) {
                 console.error('Error menyimpan transaksi:', error);
-                alert('Error menyimpan transaksi: ' + error.message);
+                alert('❌ Error menyimpan transaksi: ' + error.message);
             } finally {
                 // Sembunyikan loading
                 btnSubmit.disabled = false;
@@ -393,6 +496,9 @@
 
         // Event listener untuk tombol ekspor data
         document.getElementById('eksporData').addEventListener('click', eksporKeCSV);
+
+        // Event listener untuk tombol sync ke Sheets
+        document.getElementById('syncKeSheets').addEventListener('click', syncSemuaKeSheets);
 
         // Set tanggal default ke hari ini
         document.getElementById('tanggal').valueAsDate = new Date();
