@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tabungan Aulia & Alfye</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <div class="container py-4">
@@ -12,6 +15,9 @@
         <header class="text-center mb-5">
             <h1 class="display-4 fw-bold text-primary">Tabungan Aulia & Alfye</h1>
             <p class="lead text-muted">Kelola keuangan bersama dengan mudah dan transparan</p>
+            <div id="statusKoneksi" class="alert alert-warning d-none">
+                <span id="statusText">Menyambungkan...</span>
+            </div>
         </header>
 
         <!-- Ringkasan Keuangan -->
@@ -48,7 +54,7 @@
                 <h3 class="card-title mb-0">Form Input Transaksi</h3>
             </div>
             <div class="card-body">
-                <form id="formTransaksi" method="POST" action="https://script.google.com/macros/s/AKfycbyuQR18vlkF_F9qODJojfBXNzd3zlg6WQ6UTtSYEbOROY800LpCPfhfvx8vvqprtX506w/exec">
+                <form id="formTransaksi">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="nama" class="form-label">Nama</label>
@@ -82,7 +88,10 @@
                         <textarea class="form-control" id="keterangan" name="keterangan" rows="2"></textarea>
                     </div>
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">Simpan Transaksi</button>
+                        <button type="submit" class="btn btn-primary" id="btnSubmit">
+                            <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner"></span>
+                            Simpan Transaksi
+                        </button>
                         <button type="button" id="hapusSemua" class="btn btn-outline-danger">Hapus Semua Data</button>
                     </div>
                 </form>
@@ -93,7 +102,10 @@
         <div class="card">
             <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                 <h3 class="card-title mb-0">Riwayat Transaksi</h3>
-                <button type="button" id="eksporData" class="btn btn-light btn-sm">Ekspor ke CSV</button>
+                <div>
+                    <button type="button" id="eksporData" class="btn btn-light btn-sm me-2">Ekspor ke CSV</button>
+                    <span class="badge bg-info" id="jumlahTransaksi">0 transaksi</span>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -121,15 +133,41 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
     
     <script>
-        // Kunci untuk localStorage
-        const STORAGE_KEY = 'tabungan_aulia_alfye';
-        
-        // Inisialisasi data transaksi dari localStorage
-        let transaksi = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAsiNO4CpB1bDcIWVZZEkwerLO3Zjy52cw",
+            authDomain: "tabungan-aulia-alfye.firebaseapp.com",
+            projectId: "tabungan-aulia-alfye",
+            storageBucket: "tabungan-aulia-alfye.firebasestorage.app",
+            messagingSenderId: "845505060611",
+            appId: "1:845505060611:web:a55d2d14e9e92b1a795336",
+            measurementId: "G-0J14R7SKXK"
+        };
 
-        // Fungsi untuk menyimpan data ke localStorage
-        function simpanKeLocalStorage() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(transaksi));
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Inisialisasi data transaksi
+        let transaksi = [];
+
+        // Fungsi untuk update status koneksi
+        function updateStatusKoneksi(status, message) {
+            const statusElement = document.getElementById('statusKoneksi');
+            const statusText = document.getElementById('statusText');
+            
+            statusElement.classList.remove('d-none', 'alert-warning', 'alert-success', 'alert-danger');
+            
+            if (status === 'connecting') {
+                statusElement.classList.add('alert-warning');
+                statusText.textContent = 'Menyambungkan ke database...';
+            } else if (status === 'connected') {
+                statusElement.classList.add('alert-success');
+                statusText.textContent = 'Terhubung - Data tersinkronisasi di semua device';
+            } else if (status === 'error') {
+                statusElement.classList.add('alert-danger');
+                statusText.textContent = message || 'Error koneksi database';
+            }
         }
 
         // Fungsi untuk memformat angka ke format Rupiah
@@ -156,6 +194,7 @@
             document.getElementById('totalSaldo').textContent = formatRupiah(totalSaldo);
             document.getElementById('totalPemasukan').textContent = formatRupiah(totalPemasukan);
             document.getElementById('totalPengeluaran').textContent = formatRupiah(totalPengeluaran);
+            document.getElementById('jumlahTransaksi').textContent = `${transaksi.length} transaksi`;
         }
 
         // Fungsi untuk menampilkan data transaksi ke tabel
@@ -189,7 +228,7 @@
                     <td>${formatTanggal(t.tanggal)}</td>
                     <td>${t.keterangan || '-'}</td>
                     <td>
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="hapusTransaksi(${t.id})">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="hapusTransaksi('${t.id}')">
                             Hapus
                         </button>
                     </td>
@@ -204,28 +243,50 @@
             return new Date(tanggalString).toLocaleDateString('id-ID', options);
         }
 
-        // Fungsi untuk menghasilkan ID unik
-        function generateId() {
-            return Date.now() + Math.floor(Math.random() * 1000);
+        // Fungsi untuk menambahkan transaksi ke Firebase
+        async function tambahTransaksi(transaksiBaru) {
+            try {
+                const docRef = await db.collection('transaksi').add({
+                    ...transaksiBaru,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                return docRef.id;
+            } catch (error) {
+                console.error('Error menambah transaksi:', error);
+                throw error;
+            }
         }
 
-        // Fungsi untuk menghapus transaksi
-        function hapusTransaksi(id) {
+        // Fungsi untuk menghapus transaksi dari Firebase
+        async function hapusTransaksi(id) {
             if (confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) {
-                transaksi = transaksi.filter(t => t.id !== id);
-                simpanKeLocalStorage();
-                updateRingkasan();
-                renderTabel();
+                try {
+                    await db.collection('transaksi').doc(id).delete();
+                    // Data akan otomatis terupdate via realtime listener
+                } catch (error) {
+                    console.error('Error menghapus transaksi:', error);
+                    alert('Error menghapus transaksi: ' + error.message);
+                }
             }
         }
 
         // Fungsi untuk menghapus semua data
-        function hapusSemuaData() {
+        async function hapusSemuaData() {
             if (confirm('Apakah Anda yakin ingin menghapus SEMUA data transaksi? Tindakan ini tidak dapat dibatalkan!')) {
-                transaksi = [];
-                simpanKeLocalStorage();
-                updateRingkasan();
-                renderTabel();
+                try {
+                    const snapshot = await db.collection('transaksi').get();
+                    const batch = db.batch();
+                    
+                    snapshot.docs.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    
+                    await batch.commit();
+                    // Data akan otomatis terupdate via realtime listener
+                } catch (error) {
+                    console.error('Error menghapus semua data:', error);
+                    alert('Error menghapus data: ' + error.message);
+                }
             }
         }
 
@@ -261,13 +322,47 @@
             document.body.removeChild(link);
         }
 
+        // Real-time listener untuk data transaksi
+        function setupRealtimeListener() {
+            updateStatusKoneksi('connecting');
+            
+            db.collection('transaksi')
+                .orderBy('createdAt', 'desc')
+                .onSnapshot(
+                    (snapshot) => {
+                        transaksi = [];
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            transaksi.push({
+                                id: doc.id,
+                                ...data
+                            });
+                        });
+                        
+                        updateRingkasan();
+                        renderTabel();
+                        updateStatusKoneksi('connected');
+                    },
+                    (error) => {
+                        console.error('Error realtime listener:', error);
+                        updateStatusKoneksi('error', error.message);
+                    }
+                );
+        }
+
         // Fungsi untuk menangani submit form
-        document.getElementById('formTransaksi').addEventListener('submit', function(e) {
+        document.getElementById('formTransaksi').addEventListener('submit', async function(e) {
             e.preventDefault();
+            
+            const btnSubmit = document.getElementById('btnSubmit');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            
+            // Tampilkan loading
+            btnSubmit.disabled = true;
+            loadingSpinner.classList.remove('d-none');
             
             const formData = new FormData(this);
             const transaksiBaru = {
-                id: generateId(),
                 nama: formData.get('nama'),
                 jenis: formData.get('jenis'),
                 nominal: formData.get('nominal'),
@@ -275,38 +370,22 @@
                 keterangan: formData.get('keterangan')
             };
             
-            // Simpan ke array transaksi
-            transaksi.push(transaksiBaru);
-            
-            // Simpan ke localStorage
-            simpanKeLocalStorage();
-            
-            // Perbarui tampilan
-            updateRingkasan();
-            renderTabel();
-            
-            // Reset form
-            this.reset();
-            document.getElementById('tanggal').valueAsDate = new Date();
-            
-            // Tampilkan pesan sukses
-            alert('Transaksi berhasil disimpan!');
-            
-            // Kirim data ke Google Sheets (opsional)
-            fetch(this.action, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (response.ok) {
-                    console.log('Data berhasil dikirim ke Google Sheets');
-                } else {
-                    console.error('Gagal mengirim data ke Google Sheets');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+            try {
+                await tambahTransaksi(transaksiBaru);
+                
+                // Reset form
+                this.reset();
+                document.getElementById('tanggal').valueAsDate = new Date();
+                
+                // Data akan otomatis terupdate via realtime listener
+            } catch (error) {
+                console.error('Error menyimpan transaksi:', error);
+                alert('Error menyimpan transaksi: ' + error.message);
+            } finally {
+                // Sembunyikan loading
+                btnSubmit.disabled = false;
+                loadingSpinner.classList.add('d-none');
+            }
         });
 
         // Event listener untuk tombol hapus semua data
@@ -318,9 +397,13 @@
         // Set tanggal default ke hari ini
         document.getElementById('tanggal').valueAsDate = new Date();
 
-        // Inisialisasi tampilan saat halaman dimuat
-        updateRingkasan();
-        renderTabel();
+        // Inisialisasi aplikasi
+        function initApp() {
+            setupRealtimeListener();
+        }
+
+        // Jalankan aplikasi saat halaman dimuat
+        initApp();
     </script>
 </body>
 </html>
