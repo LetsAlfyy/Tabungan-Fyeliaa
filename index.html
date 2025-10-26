@@ -3,139 +3,751 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tabungan Aulia & Alfye</title>
+    <title>Dashboard Tabungan Aulia & Alfye</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --primary: #2196F3;
+            --success: #4CAF50;
+            --danger: #f44336;
+            --warning: #FF9800;
+            --dark: #1a1a1a;
+            --light: #ffffff;
+            --gray: #f8f9fa;
+            --sidebar-width: 280px;
+            --border-radius: 12px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--gray);
+            color: var(--dark);
+            line-height: 1.5;
+            scroll-behavior: smooth;
+            overflow-x: hidden;
+        }
+        
+        /* Layout */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--light);
+            box-shadow: var(--shadow);
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            z-index: 1000;
+            transition: var(--transition);
+            transform: translateX(-100%);
+            overflow-y: auto;
+        }
+        
+        .sidebar.open {
+            transform: translateX(0);
+        }
+        
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid #e1e5e9;
+            text-align: center;
+        }
+        
+        .sidebar-header h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 4px;
+        }
+        
+        .sidebar-header p {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .sidebar-nav {
+            padding: 20px 0;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 24px;
+            color: #666;
+            text-decoration: none;
+            transition: var(--transition);
+            border-left: 4px solid transparent;
+            cursor: pointer;
+        }
+        
+        .nav-item:hover {
+            background: rgba(33, 150, 243, 0.1);
+            color: var(--primary);
+            border-left-color: var(--primary);
+        }
+        
+        .nav-item.active {
+            background: rgba(33, 150, 243, 0.1);
+            color: var(--primary);
+            border-left-color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .nav-icon {
+            font-size: 1.2rem;
+            width: 24px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 0;
+            transition: var(--transition);
+            width: 100%;
+        }
+        
+        .main-content.sidebar-open {
+            margin-left: 0;
+            transform: translateX(var(--sidebar-width));
+        }
+        
+        /* Top Bar */
+        .top-bar {
+            background: var(--light);
+            padding: 16px 24px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .menu-toggle {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--dark);
+            padding: 8px;
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+        
+        .menu-toggle:hover {
+            background: rgba(0,0,0,0.1);
+        }
+        
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+        
+        /* Content Area */
+        .content-area {
+            padding: 24px;
+        }
+        
+        /* Overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+        
+        .overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: var(--light);
+            padding: 24px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+            transition: var(--transition);
+            border-left: 4px solid transparent;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+        
+        .stat-card.saldo { border-left-color: var(--success); }
+        .stat-card.pemasukan { border-left-color: var(--primary); }
+        .stat-card.pengeluaran { border-left-color: var(--danger); }
+        .stat-card.transaksi { border-left-color: var(--warning); }
+        
+        .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-card {
+            background: var(--light);
+            padding: 24px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+        
+        .chart-card h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--dark);
+        }
+        
+        .chart-wrapper {
+            height: 300px;
+            position: relative;
+        }
+        
+        /* Form */
+        .form-card {
+            background: var(--light);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+        
+        .form-card h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: var(--dark);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--dark);
+            display: block;
+        }
+        
+        .form-control, .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: var(--transition);
+        }
+        
+        .form-control:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: var(--light);
+        }
+        
+        .btn-primary:hover {
+            background: #1976D2;
+            transform: translateY(-1px);
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: var(--light);
+        }
+        
+        .btn-danger:hover {
+            background: #d32f2f;
+            transform: translateY(-1px);
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: var(--light);
+        }
+        
+        .btn-warning:hover {
+            background: #F57C00;
+            transform: translateY(-1px);
+        }
+        
+        .btn-outline-danger {
+            background: transparent;
+            border: 2px solid var(--danger);
+            color: var(--danger);
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+        
+        .btn-outline-danger:hover {
+            background: var(--danger);
+            color: var(--light);
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+        
+        /* Table */
+        .table-card {
+            background: var(--light);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+        
+        .table-card h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--dark);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .count-badge {
+            background: rgba(33, 150, 243, 0.1);
+            color: var(--primary);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        
+        .table thead th {
+            background: #f8f9fa;
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark);
+            border-bottom: 2px solid #e1e5e9;
+        }
+        
+        .table tbody td {
+            padding: 16px;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        
+        .table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .bg-success { background: var(--success); }
+        .bg-danger { background: var(--danger); }
+        .bg-warning { background: var(--warning); }
+        
+        /* Notification */
+        #notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 350px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+        
+        #notification.show {
+            transform: translateX(0);
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        /* Section */
+        .content-section {
+            margin-bottom: 50px;
+            scroll-margin-top: 80px;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 2px;
+            background: linear-gradient(90deg, var(--primary), transparent);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 280px;
+            }
+            
+            .main-content.sidebar-open {
+                transform: translateX(280px);
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .chart-wrapper {
+                height: 250px;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .sidebar {
+                width: 100%;
+            }
+            
+            .main-content.sidebar-open {
+                transform: translateX(100%);
+            }
+            
+            .content-area {
+                padding: 16px;
+            }
+            
+            .top-bar {
+                padding: 12px 16px;
+            }
+            
+            .form-card, .table-card, .chart-card {
+                padding: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="container py-4">
-        <!-- Header -->
-        <header class="text-center mb-5">
-            <h1 class="display-4 fw-bold text-primary">Tabungan Aulia & Alfye</h1>
-            <p class="lead text-muted">Kelola keuangan bersama dengan mudah dan transparan</p>
-            <div id="statusKoneksi" class="alert alert-warning d-none">
-                <span id="statusText">Menyambungkan...</span>
-            </div>
-        </header>
+    <!-- Notification -->
+    <div id="notification" class="alert alert-success d-none">
+        <div class="d-flex align-items-center">
+            <span id="notificationText">Terhubung - Data tersinkronisasi</span>
+            <button type="button" class="btn-close ms-3" onclick="hideNotification()"></button>
+        </div>
+    </div>
 
-        <!-- Ringkasan Keuangan -->
-        <div class="row mb-4">
-            <div class="col-md-4 mb-3">
-                <div class="card bg-success text-white">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Total Saldo</h5>
-                        <h2 class="card-text" id="totalSaldo">Rp 0</h2>
-                    </div>
-                </div>
+    <!-- Overlay -->
+    <div class="overlay" onclick="toggleSidebar()"></div>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Tabungan Aulia & Alfye</h2>
+                <p>Kelola keuangan bersama</p>
             </div>
-            <div class="col-md-4 mb-3">
-                <div class="card bg-primary text-white">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Total Pemasukan</h5>
-                        <h2 class="card-text" id="totalPemasukan">Rp 0</h2>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="card bg-danger text-white">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Total Pengeluaran</h5>
-                        <h2 class="card-text" id="totalPengeluaran">Rp 0</h2>
-                    </div>
-                </div>
+            
+            <div class="sidebar-nav">
+                <a href="#dashboard" class="nav-item active" onclick="scrollToSection('dashboard')">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#grafik" class="nav-item" onclick="scrollToSection('grafik')">
+                    <span class="nav-icon">📈</span>
+                    <span>Grafik Detail</span>
+                </a>
+                <a href="#transaksi" class="nav-item" onclick="scrollToSection('transaksi')">
+                    <span class="nav-icon">💸</span>
+                    <span>Input Transaksi</span>
+                </a>
+                <a href="#riwayat" class="nav-item" onclick="scrollToSection('riwayat')">
+                    <span class="nav-icon">📋</span>
+                    <span>Riwayat Transaksi</span>
+                </a>
             </div>
         </div>
 
-        <!-- Form Input Transaksi -->
-        <div class="card mb-5">
-            <div class="card-header bg-primary text-white">
-                <h3 class="card-title mb-0">Form Input Transaksi</h3>
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <button class="menu-toggle" onclick="toggleSidebar()">
+                    ☰
+                </button>
+                <h1 class="page-title" id="pageTitle">Dashboard Tabungan</h1>
+                <div style="width: 48px;"></div> <!-- Spacer untuk balance -->
             </div>
-            <div class="card-body">
-                <form id="formTransaksi">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="nama" class="form-label">Nama</label>
-                            <select class="form-select" id="nama" name="nama" required>
-                                <option value="" selected disabled>Pilih nama</option>
-                                <option value="Aulia">Aulia</option>
-                                <option value="Alfye">Alfye</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="jenis" class="form-label">Jenis Transaksi</label>
-                            <select class="form-select" id="jenis" name="jenis" required>
-                                <option value="" selected disabled>Pilih jenis</option>
-                                <option value="Pemasukan">Pemasukan</option>
-                                <option value="Pengeluaran">Pengeluaran</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="nominal" class="form-label">Nominal (Rp)</label>
-                            <input type="number" class="form-control" id="nominal" name="nominal" min="0" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="tanggal" class="form-label">Tanggal Transaksi</label>
-                            <input type="date" class="form-control" id="tanggal" name="tanggal" required>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="keterangan" class="form-label">Keterangan (Opsional)</label>
-                        <textarea class="form-control" id="keterangan" name="keterangan" rows="2"></textarea>
-                    </div>
-                    <div class="d-flex gap-2 flex-wrap">
-                        <button type="submit" class="btn btn-primary" id="btnSubmit">
-                            <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner"></span>
-                            Simpan Transaksi
-                        </button>
-                        <button type="button" id="hapusSemua" class="btn btn-outline-danger">Hapus Semua Data</button>
-                        <button type="button" id="syncKeSheets" class="btn btn-outline-success">Sync ke Google Sheets</button>
-                    </div>
-                </form>
-            </div>
-        </div>
 
-        <!-- Tabel Riwayat Transaksi -->
-        <div class="card">
-            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                <h3 class="card-title mb-0">Riwayat Transaksi</h3>
-                <div>
-                    <button type="button" id="eksporData" class="btn btn-light btn-sm me-2">Ekspor ke CSV</button>
-                    <span class="badge bg-info" id="jumlahTransaksi">0 transaksi</span>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th scope="col">No</th>
-                                <th scope="col">Nama</th>
-                                <th scope="col">Jenis Transaksi</th>
-                                <th scope="col">Nominal</th>
-                                <th scope="col">Tanggal</th>
-                                <th scope="col">Keterangan</th>
-                                <th scope="col">Sync Status</th>
-                                <th scope="col">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabelTransaksi">
-                            <!-- Data transaksi akan ditampilkan di sini -->
-                        </tbody>
-                    </table>
-                </div>
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Dashboard Section -->
+                <section id="dashboard" class="content-section">
+                    <h2 class="section-title">📊 Dashboard Overview</h2>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card saldo">
+                            <div class="stat-icon">💰</div>
+                            <div class="stat-value" id="totalSaldo">Rp 0</div>
+                            <div class="stat-label">Total Saldo</div>
+                        </div>
+                        
+                        <div class="stat-card pemasukan">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-value" id="totalPemasukan">Rp 0</div>
+                            <div class="stat-label">Total Pemasukan</div>
+                        </div>
+                        
+                        <div class="stat-card pengeluaran">
+                            <div class="stat-icon">📉</div>
+                            <div class="stat-value" id="totalPengeluaran">Rp 0</div>
+                            <div class="stat-label">Total Pengeluaran</div>
+                        </div>
+                        
+                        <div class="stat-card transaksi">
+                            <div class="stat-icon">📝</div>
+                            <div class="stat-value" id="jumlahTransaksi">0</div>
+                            <div class="stat-label">Total Transaksi</div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>Perkembangan Saldo</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="saldoChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-card">
+                            <h3>Rasio Keuangan</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="rasioChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Grafik Section -->
+                <section id="grafik" class="content-section">
+                    <h2 class="section-title">📈 Analisis Grafik Detail</h2>
+                    
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>Trend Pemasukan & Pengeluaran</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="tabunganChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-card">
+                            <h3>Perbandingan Bulanan</h3>
+                            <div class="chart-wrapper">
+                                <canvas id="perbandinganChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Transaksi Section -->
+                <section id="transaksi" class="content-section">
+                    <h2 class="section-title">💸 Input Transaksi Baru</h2>
+                    
+                    <div class="form-card">
+                        <form id="formTransaksi">
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label for="nama" class="form-label">Nama</label>
+                                    <select class="form-select" id="nama" name="nama" required>
+                                        <option value="" selected disabled>Pilih nama</option>
+                                        <option value="Aulia">Aulia</option>
+                                        <option value="Alfye">Alfye</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 form-group">
+                                    <label for="jenis" class="form-label">Jenis Transaksi</label>
+                                    <select class="form-select" id="jenis" name="jenis" required>
+                                        <option value="" selected disabled>Pilih jenis</option>
+                                        <option value="Pemasukan">Pemasukan</option>
+                                        <option value="Pengeluaran">Pengeluaran</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label for="nominal" class="form-label">Nominal (Rp)</label>
+                                    <input type="number" class="form-control" id="nominal" name="nominal" min="0" required placeholder="Masukkan nominal">
+                                </div>
+                                <div class="col-md-6 form-group">
+                                    <label for="tanggal" class="form-label">Tanggal Transaksi</label>
+                                    <input type="date" class="form-control" id="tanggal" name="tanggal" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="keterangan" class="form-label">Keterangan (Opsional)</label>
+                                <textarea class="form-control" id="keterangan" name="keterangan" rows="3" placeholder="Tambahkan keterangan transaksi"></textarea>
+                            </div>
+                            
+                            <div class="action-buttons">
+                                <button type="submit" class="btn btn-primary" id="btnSubmit">
+                                    <span class="spinner-border spinner-border-sm d-none" id="loadingSpinner"></span>
+                                    💾 Simpan Transaksi
+                                </button>
+                                <button type="button" id="hapusSemua" class="btn btn-danger">
+                                    🗑️ Hapus Semua Data
+                                </button>
+                                <button type="button" id="syncKeSheets" class="btn btn-warning">
+                                    🔄 Sync ke Google Sheets
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Riwayat Section -->
+                <section id="riwayat" class="content-section">
+                    <h2 class="section-title">📋 Riwayat Transaksi</h2>
+                    
+                    <div class="table-card">
+                        <h3>
+                            Daftar Transaksi
+                            <span class="count-badge" id="jumlahTransaksiRiwayat">0 transaksi</span>
+                        </h3>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th width="5%">No</th>
+                                        <th width="12%">Nama</th>
+                                        <th width="12%">Jenis</th>
+                                        <th width="15%">Nominal</th>
+                                        <th width="15%">Tanggal</th>
+                                        <th width="23%">Keterangan</th>
+                                        <th width="13%">Status Sync</th>
+                                        <th width="5%">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelTransaksi">
+                                    <!-- Data akan diisi oleh JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM7D2scQbITxI" crossorigin="anonymous"></script>
     
     <script>
-        // Konfigurasi Firebase - GANTI dengan konfigurasi Anda
+        // Konfigurasi Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyAsiNO4CpB1bDcIWVZZEkwerLO3Zjy52cw",
             authDomain: "tabungan-aulia-alfye.firebaseapp.com",
@@ -153,29 +765,308 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Inisialisasi data transaksi
+        // Inisialisasi data
         let transaksi = [];
+        let saldoChart = null;
+        let rasioChart = null;
+        let tabunganChart = null;
+        let perbandinganChart = null;
 
-        // Fungsi untuk update status koneksi
-        function updateStatusKoneksi(status, message) {
-            const statusElement = document.getElementById('statusKoneksi');
-            const statusText = document.getElementById('statusText');
+        // Menu Functions
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const mainContent = document.querySelector('.main-content');
+            const overlay = document.querySelector('.overlay');
             
-            statusElement.classList.remove('d-none', 'alert-warning', 'alert-success', 'alert-danger');
+            sidebar.classList.toggle('open');
+            mainContent.classList.toggle('sidebar-open');
+            overlay.classList.toggle('show');
             
-            if (status === 'connecting') {
-                statusElement.classList.add('alert-warning');
-                statusText.textContent = 'Menyambungkan ke database...';
-            } else if (status === 'connected') {
-                statusElement.classList.add('alert-success');
-                statusText.textContent = 'Terhubung - Data tersinkronisasi di semua device';
-            } else if (status === 'error') {
-                statusElement.classList.add('alert-danger');
-                statusText.textContent = message || 'Error koneksi database';
+            // Prevent body scrolling when sidebar is open
+            document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+        }
+
+        function scrollToSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                // Update active nav item
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                event.target.closest('.nav-item').classList.add('active');
+                
+                // Scroll to section
+                section.scrollIntoView({ behavior: 'smooth' });
+                
+                // Close sidebar on mobile
+                if (window.innerWidth <= 768) {
+                    toggleSidebar();
+                }
             }
         }
 
-        // Fungsi untuk memformat angka ke format Rupiah
+        // Fungsi untuk membuat grafik saldo
+        function buatGrafikSaldo() {
+            const ctx = document.getElementById('saldoChart').getContext('2d');
+            const dataGrafik = siapkanDataGrafik();
+            
+            if (saldoChart) {
+                saldoChart.destroy();
+            }
+            
+            saldoChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dataGrafik.labels,
+                    datasets: [{
+                        label: 'Total Saldo',
+                        data: dataGrafik.saldo,
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'Rp ' + value.toLocaleString('id-ID');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fungsi untuk membuat grafik rasio
+        function buatGrafikRasio() {
+            const ctx = document.getElementById('rasioChart').getContext('2d');
+            const totalPemasukan = transaksi
+                .filter(t => t.jenis === 'Pemasukan')
+                .reduce((sum, t) => sum + parseInt(t.nominal), 0);
+            
+            const totalPengeluaran = transaksi
+                .filter(t => t.jenis === 'Pengeluaran')
+                .reduce((sum, t) => sum + parseInt(t.nominal), 0);
+            
+            if (rasioChart) {
+                rasioChart.destroy();
+            }
+            
+            rasioChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Pemasukan', 'Pengeluaran'],
+                    datasets: [{
+                        data: [totalPemasukan, totalPengeluaran],
+                        backgroundColor: ['#4CAF50', '#f44336'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fungsi untuk membuat grafik tabungan
+        function buatGrafikTabungan() {
+            const ctx = document.getElementById('tabunganChart').getContext('2d');
+            const dataGrafik = siapkanDataGrafik();
+            
+            if (tabunganChart) {
+                tabunganChart.destroy();
+            }
+            
+            tabunganChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dataGrafik.labels,
+                    datasets: [{
+                        label: 'Pemasukan',
+                        data: dataGrafik.pemasukan,
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Pengeluaran',
+                        data: dataGrafik.pengeluaran,
+                        borderColor: '#f44336',
+                        backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'Rp ' + value.toLocaleString('id-ID');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fungsi untuk membuat grafik perbandingan
+        function buatGrafikPerbandingan() {
+            const ctx = document.getElementById('perbandinganChart').getContext('2d');
+            const dataGrafik = siapkanDataGrafik();
+            
+            if (perbandinganChart) {
+                perbandinganChart.destroy();
+            }
+            
+            perbandinganChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dataGrafik.labels,
+                    datasets: [{
+                        label: 'Pemasukan',
+                        data: dataGrafik.pemasukan,
+                        backgroundColor: '#4CAF50',
+                        borderColor: '#4CAF50',
+                        borderWidth: 1
+                    }, {
+                        label: 'Pengeluaran',
+                        data: dataGrafik.pengeluaran,
+                        backgroundColor: '#f44336',
+                        borderColor: '#f44336',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'Rp ' + value.toLocaleString('id-ID');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fungsi untuk menyiapkan data grafik
+        function siapkanDataGrafik() {
+            if (transaksi.length === 0) {
+                return {
+                    labels: ['Belum ada data'],
+                    saldo: [0],
+                    pemasukan: [0],
+                    pengeluaran: [0]
+                };
+            }
+
+            const transaksiPerBulan = {};
+            
+            transaksi.forEach(t => {
+                const tanggal = new Date(t.tanggal);
+                const key = `${tanggal.getFullYear()}-${String(tanggal.getMonth() + 1).padStart(2, '0')}`;
+                
+                if (!transaksiPerBulan[key]) {
+                    transaksiPerBulan[key] = {
+                        pemasukan: 0,
+                        pengeluaran: 0
+                    };
+                }
+                
+                if (t.jenis === 'Pemasukan') {
+                    transaksiPerBulan[key].pemasukan += parseInt(t.nominal);
+                } else {
+                    transaksiPerBulan[key].pengeluaran += parseInt(t.nominal);
+                }
+            });
+
+            const sortedMonths = Object.keys(transaksiPerBulan).sort();
+            
+            const labels = sortedMonths.map(month => {
+                const [tahun, bulan] = month.split('-');
+                return `${bulan}/${tahun}`;
+            });
+            
+            const saldo = [];
+            let saldoSekarang = 0;
+            
+            sortedMonths.forEach(month => {
+                saldoSekarang += transaksiPerBulan[month].pemasukan - transaksiPerBulan[month].pengeluaran;
+                saldo.push(saldoSekarang);
+            });
+
+            return {
+                labels,
+                saldo,
+                pemasukan: sortedMonths.map(month => transaksiPerBulan[month].pemasukan),
+                pengeluaran: sortedMonths.map(month => transaksiPerBulan[month].pengeluaran)
+            };
+        }
+
+        // Fungsi notifikasi
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notificationText');
+            
+            notification.className = `alert alert-${type}`;
+            notificationText.textContent = message;
+            notification.classList.remove('d-none');
+            notification.classList.add('show');
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    hideNotification();
+                }, 4000);
+            }
+        }
+
+        function hideNotification() {
+            const notification = document.getElementById('notification');
+            notification.classList.remove('show');
+            setTimeout(() => {
+                notification.classList.add('d-none');
+            }, 300);
+        }
+
+        function updateStatusKoneksi(status, message) {
+            if (status === 'connected') {
+                showNotification('Terhubung - Data tersinkronisasi', 'success');
+            } else if (status === 'error') {
+                showNotification('Koneksi terputus', 'danger');
+            }
+        }
+
+        // Format Rupiah
         function formatRupiah(angka) {
             return new Intl.NumberFormat('id-ID', {
                 style: 'currency',
@@ -184,8 +1075,8 @@
             }).format(angka);
         }
 
-        // Fungsi untuk memperbarui ringkasan keuangan
-        function updateRingkasan() {
+        // Update dashboard
+        function updateDashboard() {
             let totalPemasukan = transaksi
                 .filter(t => t.jenis === 'Pemasukan')
                 .reduce((sum, t) => sum + parseInt(t.nominal), 0);
@@ -199,10 +1090,17 @@
             document.getElementById('totalSaldo').textContent = formatRupiah(totalSaldo);
             document.getElementById('totalPemasukan').textContent = formatRupiah(totalPemasukan);
             document.getElementById('totalPengeluaran').textContent = formatRupiah(totalPengeluaran);
-            document.getElementById('jumlahTransaksi').textContent = `${transaksi.length} transaksi`;
+            document.getElementById('jumlahTransaksi').textContent = transaksi.length;
+            document.getElementById('jumlahTransaksiRiwayat').textContent = `${transaksi.length} transaksi`;
+            
+            buatGrafikSaldo();
+            buatGrafikRasio();
+            buatGrafikTabungan();
+            buatGrafikPerbandingan();
+            renderTabel();
         }
 
-        // Fungsi untuk menampilkan data transaksi ke tabel
+        // Render tabel
         function renderTabel() {
             const tabelBody = document.getElementById('tabelTransaksi');
             tabelBody.innerHTML = '';
@@ -210,19 +1108,24 @@
             if (transaksi.length === 0) {
                 tabelBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-center">Belum ada transaksi</td>
+                        <td colspan="8" class="text-center py-5">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📝</div>
+                                <p class="mb-2">Belum ada transaksi</p>
+                                <small class="text-muted">Mulai dengan menambahkan transaksi pertama</small>
+                            </div>
+                        </td>
                     </tr>
                 `;
                 return;
             }
             
-            // Urutkan transaksi berdasarkan tanggal (terbaru di atas)
             const transaksiTerurut = [...transaksi].sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
             
             transaksiTerurut.forEach((t, index) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <th scope="row">${index + 1}</th>
+                    <td>${index + 1}</td>
                     <td>${t.nama}</td>
                     <td>
                         <span class="badge ${t.jenis === 'Pemasukan' ? 'bg-success' : 'bg-danger'}">
@@ -231,14 +1134,14 @@
                     </td>
                     <td>${formatRupiah(parseInt(t.nominal))}</td>
                     <td>${formatTanggal(t.tanggal)}</td>
-                    <td>${t.keterangan || '-'}</td>
+                    <td class="text-truncate" style="max-width: 200px;" title="${t.keterangan || ''}">${t.keterangan || '-'}</td>
                     <td>
                         <span class="badge ${t.syncToSheets ? 'bg-success' : 'bg-warning'}">
                             ${t.syncToSheets ? '✓ Tersync' : 'Belum Sync'}
                         </span>
                     </td>
                     <td>
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="hapusTransaksi('${t.id}')">
+                        <button type="button" class="btn btn-outline-danger" onclick="hapusTransaksi('${t.id}')">
                             Hapus
                         </button>
                     </td>
@@ -247,13 +1150,13 @@
             });
         }
 
-        // Fungsi untuk memformat tanggal
+        // Format tanggal
         function formatTanggal(tanggalString) {
             const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
             return new Date(tanggalString).toLocaleDateString('id-ID', options);
         }
 
-        // Fungsi untuk menambahkan transaksi ke Firebase
+        // Fungsi Firebase
         async function tambahTransaksi(transaksiBaru) {
             try {
                 const docRef = await db.collection('transaksi').add({
@@ -268,12 +1171,10 @@
             }
         }
 
-        // Fungsi untuk menyimpan ke Google Sheets
         async function simpanKeGoogleSheets(transaksiData) {
             try {
-                // Sesuaikan dengan struktur yang diharapkan Google Apps Script
                 const payload = {
-                    'Date': new Date().toISOString().split('T')[0], // Kolom Date otomatis
+                    'Date': new Date().toISOString().split('T')[0],
                     'Nama': transaksiData.nama,
                     'Jenis': transaksiData.jenis,
                     'Nominal': transaksiData.nominal,
@@ -281,39 +1182,34 @@
                     'Keterangan': transaksiData.keterangan || ''
                 };
 
-                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors', // Important for Google Apps Script
+                    mode: 'no-cors',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
                     body: new URLSearchParams(payload)
                 });
 
-                // Dengan mode no-cors, kita tidak bisa membaca response
-                // Tapi kita anggap berhasil jika tidak ada error
-                console.log('Data dikirim ke Google Sheets');
                 return true;
-
             } catch (error) {
                 console.error('Error menyimpan ke Google Sheets:', error);
                 throw error;
             }
         }
 
-        // Fungsi untuk sync semua data ke Google Sheets
         async function syncSemuaKeSheets() {
             const btnSync = document.getElementById('syncKeSheets');
             const originalText = btnSync.innerHTML;
             
             try {
                 btnSync.disabled = true;
-                btnSync.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Syncing...';
+                btnSync.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sync...';
                 
                 const transaksiBelumSync = transaksi.filter(t => !t.syncToSheets);
                 
                 if (transaksiBelumSync.length === 0) {
-                    alert('Semua data sudah tersinkronisasi dengan Google Sheets!');
+                    showNotification('Semua data sudah tersinkronisasi', 'info');
                     return;
                 }
                 
@@ -323,7 +1219,6 @@
                 for (const trans of transaksiBelumSync) {
                     try {
                         await simpanKeGoogleSheets(trans);
-                        // Update flag di Firebase
                         await db.collection('transaksi').doc(trans.id).update({
                             syncToSheets: true
                         });
@@ -333,40 +1228,38 @@
                         gagal++;
                     }
                     
-                    // Delay sedikit antara setiap request untuk menghindari limit
                     await new Promise(resolve => setTimeout(resolve, 500));
                 }
                 
                 if (gagal === 0) {
-                    alert(`✅ Sync berhasil! ${berhasil} transaksi telah disinkronisasi ke Google Sheets.`);
+                    showNotification(`Sync berhasil! ${berhasil} transaksi`, 'success');
                 } else {
-                    alert(`⚠️ Sync selesai!\nBerhasil: ${berhasil} transaksi\nGagal: ${gagal} transaksi\n\nData yang gagal akan dicoba lagi saat sync berikutnya.`);
+                    showNotification(`Sync selesai! Berhasil: ${berhasil}, Gagal: ${gagal}`, 'warning');
                 }
                 
             } catch (error) {
                 console.error('Error sync ke Sheets:', error);
-                alert('❌ Error sync ke Google Sheets: ' + error.message);
+                showNotification('Error sync ke Google Sheets', 'danger');
             } finally {
                 btnSync.disabled = false;
                 btnSync.innerHTML = originalText;
             }
         }
 
-        // Fungsi untuk menghapus transaksi dari Firebase
         async function hapusTransaksi(id) {
-            if (confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) {
+            if (confirm('Hapus transaksi ini?')) {
                 try {
                     await db.collection('transaksi').doc(id).delete();
+                    showNotification('Transaksi berhasil dihapus', 'success');
                 } catch (error) {
                     console.error('Error menghapus transaksi:', error);
-                    alert('Error menghapus transaksi: ' + error.message);
+                    showNotification('Error menghapus transaksi', 'danger');
                 }
             }
         }
 
-        // Fungsi untuk menghapus semua data
         async function hapusSemuaData() {
-            if (confirm('Apakah Anda yakin ingin menghapus SEMUA data transaksi? Tindakan ini tidak dapat dibatalkan!')) {
+            if (confirm('Hapus SEMUA data transaksi? Tindakan ini tidak dapat dibatalkan!')) {
                 try {
                     const snapshot = await db.collection('transaksi').get();
                     const batch = db.batch();
@@ -376,47 +1269,15 @@
                     });
                     
                     await batch.commit();
+                    showNotification('Semua data berhasil dihapus', 'success');
                 } catch (error) {
                     console.error('Error menghapus semua data:', error);
-                    alert('Error menghapus data: ' + error.message);
+                    showNotification('Error menghapus data', 'danger');
                 }
             }
         }
 
-        // Fungsi untuk mengekspor data ke CSV
-        function eksporKeCSV() {
-            if (transaksi.length === 0) {
-                alert('Tidak ada data untuk diekspor');
-                return;
-            }
-            
-            const headers = ['No', 'Nama', 'Jenis', 'Nominal', 'Tanggal', 'Keterangan', 'Sync Status'];
-            const csvData = transaksi.map((t, index) => [
-                index + 1,
-                t.nama,
-                t.jenis,
-                t.nominal,
-                t.tanggal,
-                t.keterangan || '',
-                t.syncToSheets ? 'Tersync' : 'Belum Sync'
-            ]);
-            
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += headers.join(',') + '\n';
-            csvData.forEach(row => {
-                csvContent += row.join(',') + '\n';
-            });
-            
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `tabungan_aulia_alfye_${new Date().toISOString().split('T')[0]}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        // Real-time listener untuk data transaksi
+        // Real-time listener
         function setupRealtimeListener() {
             updateStatusKoneksi('connecting');
             
@@ -433,8 +1294,7 @@
                             });
                         });
                         
-                        updateRingkasan();
-                        renderTabel();
+                        updateDashboard();
                         updateStatusKoneksi('connected');
                     },
                     (error) => {
@@ -444,14 +1304,13 @@
                 );
         }
 
-        // Fungsi untuk menangani submit form
+        // Event listeners
         document.getElementById('formTransaksi').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const btnSubmit = document.getElementById('btnSubmit');
             const loadingSpinner = document.getElementById('loadingSpinner');
             
-            // Tampilkan loading
             btnSubmit.disabled = true;
             loadingSpinner.classList.remove('d-none');
             
@@ -465,55 +1324,40 @@
             };
             
             try {
-                // Simpan ke Firebase
                 const docId = await tambahTransaksi(transaksiBaru);
                 
-                // Coba simpan ke Google Sheets juga
                 try {
                     await simpanKeGoogleSheets(transaksiBaru);
-                    // Update flag di Firebase jika berhasil
                     await db.collection('transaksi').doc(docId).update({
                         syncToSheets: true
                     });
-                    alert('✅ Transaksi berhasil disimpan ke Firebase dan Google Sheets!');
+                    showNotification('Transaksi berhasil disimpan', 'success');
                 } catch (sheetsError) {
-                    console.warn('Data tersimpan di Firebase tapi gagal di Google Sheets:', sheetsError);
-                    alert('⚠️ Transaksi berhasil disimpan di Firebase, tapi gagal di Google Sheets. Gunakan tombol "Sync ke Google Sheets" nanti.');
+                    showNotification('Transaksi disimpan, gagal sync ke Sheets', 'warning');
                 }
                 
-                // Reset form
                 this.reset();
                 document.getElementById('tanggal').valueAsDate = new Date();
                 
             } catch (error) {
                 console.error('Error menyimpan transaksi:', error);
-                alert('❌ Error menyimpan transaksi: ' + error.message);
+                showNotification('Error menyimpan transaksi', 'danger');
             } finally {
-                // Sembunyikan loading
                 btnSubmit.disabled = false;
                 loadingSpinner.classList.add('d-none');
             }
         });
 
-        // Event listener untuk tombol hapus semua data
         document.getElementById('hapusSemua').addEventListener('click', hapusSemuaData);
-
-        // Event listener untuk tombol ekspor data
-        document.getElementById('eksporData').addEventListener('click', eksporKeCSV);
-
-        // Event listener untuk tombol sync ke Sheets
         document.getElementById('syncKeSheets').addEventListener('click', syncSemuaKeSheets);
-
-        // Set tanggal default ke hari ini
         document.getElementById('tanggal').valueAsDate = new Date();
 
-        // Inisialisasi aplikasi
+        // Inisialisasi
         function initApp() {
             setupRealtimeListener();
         }
 
-        // Jalankan aplikasi saat halaman dimuat
         initApp();
     </script>
 </body>
-    </html>
+</html>
